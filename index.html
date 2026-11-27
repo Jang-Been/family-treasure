@@ -114,6 +114,12 @@ h1 span { color: var(--coral); }
 .photo-panel { border: 3px dashed var(--ink); border-radius: 18px; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
 .photo-panel h2 { font-family: var(--display); font-weight: 400; margin: 0; font-size: 22px; }
 .thumbs { display: flex; flex-wrap: wrap; gap: 8px; }
+.album-open { align-self: center; font-family: var(--display); font-size: 17px; }
+.album-thumbs { max-height: 180px; overflow-y: auto; }
+.album-thumbs img { width: 46px; height: 46px; }
+.tv-album { position: absolute; inset: 0; background: #111; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.tv-album img { max-width: 100%; max-height: calc(100% - 34px); object-fit: contain; }
+#tvAlbumCap { color: #fff; font-family: var(--display); font-size: 18px; padding: 4px; }
 .thumbs img { width: 56px; height: 56px; object-fit: cover; border-radius: 10px; border: 2px solid var(--ink); }
 .row { display: flex; gap: 8px; flex-wrap: wrap; }
 .small-btn { background: #fff; border: 3px solid var(--ink); border-radius: 12px; padding: 6px 12px; font-size: 16px; box-shadow: 0 3px 0 var(--ink); }
@@ -304,7 +310,8 @@ body.touch .atk-btn { bottom: calc(env(safe-area-inset-bottom, 0px) + 132px); }
 <div class="store tv-box" id="tvBox" hidden role="dialog" aria-labelledby="tvTitle">
   <div class="store-card tv-card">
     <div class="store-head"><h2 id="tvTitle">📺 TV</h2><button class="small-btn" id="tvClose">TV 끄기</button></div>
-    <div class="tv-screen"><iframe id="tvFrame" title="TV 영상" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe><p class="tv-empty" id="tvEmpty" hidden></p></div>
+    <div class="tv-screen"><iframe id="tvFrame" title="TV 영상" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe><p class="tv-empty" id="tvEmpty" hidden></p><div class="tv-album" id="tvAlbum" hidden><img id="tvAlbumImg" alt="가족 앨범 사진"><div id="tvAlbumCap"></div></div></div>
+    <div class="tv-row" id="tvAlbumCtl" hidden><button class="small-btn" id="albPrev">◀ 앞 사진</button><button class="small-btn" id="albNext">다음 사진 ▶</button><button class="small-btn" id="albShuffle" aria-pressed="false">🔀 섞어서 보기</button></div>
     <div class="tabs tv-chips" id="tvChips"></div>
     <div class="tv-row"><button class="small-btn" id="tvNext">다른 채널 (랜덤)</button><button class="small-btn" id="tvSetBtn">채널 설정</button><a class="small-btn" id="tvYt" target="_blank" rel="noopener" hidden>유튜브에서 보기</a></div>
     <div class="tv-set" id="tvSet" hidden><p class="note">엄마 아빠용: 채널마다 유튜브 영상이나 재생목록 주소를 붙여넣고 저장하면, 모든 기기의 TV에 나와요.</p><div id="tvSetList"></div><button class="small-btn" id="tvSetSave">저장하기</button></div>
@@ -386,6 +393,20 @@ body.touch .atk-btn { bottom: calc(env(safe-area-inset-bottom, 0px) + 132px); }
         <input type="file" id="fileIn" accept="image/*" multiple hidden>
         <button class="small-btn" id="clearPhotos">사진 지우기</button>
         <button class="small-btn" id="closePhotos">닫기</button>
+      </div>
+    </div>
+    <button class="small-btn album-open" id="albumOpen">📸 가족 앨범 (<span id="albumCount">아직 없어요</span>)</button>
+    <div class="photo-panel" id="albumPanel" hidden>
+      <h2>📸 가족 앨범</h2>
+      <p class="note" style="text-align:left">구글 포토에서 내려받은 가족 사진을 한꺼번에 많이 골라요(수백 장도 괜찮아요). 찍은 날짜를 읽어서 2017년부터 지금까지 해마다 고르게 섞어 100장을 뽑아 넣어요. 앨범 사진은 하늘섬 집 TV의 '가족 앨범' 채널과 보물 상자에서 나와요.</p>
+      <p class="note album-years" id="albumYears"></p>
+      <div class="thumbs album-thumbs" id="albumThumbs"></div>
+      <p class="note" id="albumMsg" aria-live="polite"></p>
+      <div class="row">
+        <label class="small-btn" for="albumIn" style="font-family:var(--display)">사진 고르기 (여러 장)</label>
+        <input type="file" id="albumIn" accept="image/*" multiple hidden>
+        <button class="small-btn" id="albumClear">앨범 비우기</button>
+        <button class="small-btn" id="albumClose">닫기</button>
       </div>
     </div>
     <button class="go" id="startBtn">보물 찾으러 가기!</button>
@@ -1979,9 +2000,9 @@ let toastTimer = null;
 function toast(msg) { const t = $('toast'); t.textContent = msg; t.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => t.hidden = true, 2200); }
 let popTimer = null;
 function showPhoto() {
-  const list = allPhotos(); if (!list.length) return;
-  const p = list[Math.floor(Math.random() * list.length)];
-  $('photoImg').src = p.src; $('photoCap').textContent = `${p.who} 사진을 찾았어요!`;
+  const list = allPhotos(), al = albumPhotoPick(); if (!list.length && !al) return;
+  if (al && (!list.length || Math.random() < 0.7)) { $('photoImg').src = al.src; $('photoCap').textContent = al.cap; }
+  else { const p = list[Math.floor(Math.random() * list.length)]; $('photoImg').src = p.src; $('photoCap').textContent = `${p.who} 사진을 찾았어요!`; }
   $('photoPop').hidden = false; clearTimeout(popTimer); popTimer = setTimeout(() => $('photoPop').hidden = true, 2600);
 }
 $('photoPop').onclick = () => $('photoPop').hidden = true;
@@ -2832,6 +2853,7 @@ function gemMesh(id) {
 }
 function scatterFairyGems() {
   fairyGems.forEach(g => scene.remove(g.o)); fairyGems.length = 0;
+  if (fairyTakenThisHour()) { setTimeout(() => toast(`요정숲 보물은 1시간에 1개예요. ${fairyNextText()}`), 1800); return; }
   for (let i = 0; i < 1; i++) {
     let x = 0, z = 0;
     for (let k = 0; k < 40; k++) { const a = Math.random() * 6.283, d = 6 + Math.random() * (FAIRY.r - 9); x = FAIRY.x + Math.cos(a) * d; z = FAIRY.z + Math.sin(a) * d; if (obstacles.every(o => !o.fairy || Math.hypot(o.x - x, o.z - z) > o.r + 1)) break; }
@@ -2870,9 +2892,9 @@ function updateFairy(dt) {
     const g = fairyGems[i]; g.o.rotation.y += dt * 1.5; g.o.position.y = 0.7 + Math.sin(T * 2 + g.ph) * 0.12;
     if (myDistTo(g.o.position.x, g.o.position.z) < 1.4) {
       if ((state.fairyTaken || 0) >= 1) { if (Date.now() > fairyTipAt) { fairyTipAt = Date.now() + 4000; toast('요정숲 보석은 1개만 가져갈 수 있어요!'); } continue; }
-      state.fairyTaken = (state.fairyTaken || 0) + 1; myBag().gems[g.id]++; saveBag();
+      state.fairyTaken = (state.fairyTaken || 0) + 1; markFairyHour(); myBag().gems[g.id]++; saveBag();
       scene.remove(g.o); fairyGems.splice(i, 1); confetti(g.o.position); beep([1175, 1568, 2093], 0.07);
-      toast(`요정숲의 보물 ${eul(GEM[g.id].name)} 찾았어요!`);
+      toast(`요정숲의 보물 ${eul(GEM[g.id].name)} 찾았어요! ${fairyNextText()}`);
     }
   }
 }
@@ -3684,6 +3706,8 @@ function ytSrc(u) {
 }
 let tvOn = null; // { h, ch }
 function openTV(h, chId) {
+  if (chId === 'album' || (!chId && album.length && Math.random() < 0.25)) { openAlbumChannel(h); return; }
+  stopAlbumTV();
   const good = c => chLinks(c).filter(u => ytSrc(u) && !tvBad.has(u));
   const ready = TV_CH.filter(c => good(c).length);
   let ch = TV_CH.find(c => c.id === chId);
@@ -3697,6 +3721,7 @@ function openTV(h, chId) {
   $('tvTitle').textContent = `📺 ${famName(h.id)}네 TV · ${ch ? ch.name : '채널 없음'}`;
   const chips = $('tvChips'); chips.textContent = '';
   TV_CH.forEach(c => { const b = document.createElement('button'); b.className = 'tab'; b.textContent = c.name; b.setAttribute('aria-pressed', String(c === ch)); b.onclick = () => openTV(h, c.id); chips.append(b); });
+  albumChip(h, false);
   $('tvBox').hidden = false; $('tvSet').hidden = true;
   if (!nagAt) nagAt = Date.now() + 150000 + Math.random() * 150000;
 }
@@ -3719,7 +3744,14 @@ function tvFail(u, code) {
   toast(more ? '이 영상은 TV에서 틀 수 없게 막혀 있어요. 같은 채널 다른 영상으로 바꿀게요' : '이 채널은 TV에서 틀 수 없게 막혀 있어요');
   setTimeout(() => { if (tvOn) openTV(tvOn.h, ch && ch.id); }, 1400);
 }
-function closeTV() { $('tvBox').hidden = true; $('tvFrame').src = 'about:blank'; tvOn = null; }
+function albumChip(h, on) { const b = document.createElement('button'); b.className = 'tab'; b.textContent = '📸 가족 앨범'; b.setAttribute('aria-pressed', String(on)); b.onclick = () => openTV(h, 'album'); $('tvChips').append(b); }
+function openAlbumChannel(h) {
+  tvOn = { h, ch: null, album: true }; $('tvTitle').textContent = `📺 ${famName(h.id)}네 TV · 가족 앨범`;
+  const chips = $('tvChips'); chips.textContent = '';
+  TV_CH.forEach(c => { const b = document.createElement('button'); b.className = 'tab'; b.textContent = c.name; b.setAttribute('aria-pressed', 'false'); b.onclick = () => openTV(h, c.id); chips.append(b); });
+  albumChip(h, true); showAlbumTV(h); $('tvBox').hidden = false; $('tvSet').hidden = true;
+}
+function closeTV() { stopAlbumTV(); $('tvBox').hidden = true; $('tvFrame').src = 'about:blank'; tvOn = null; }
 function openTvSettings() {
   const box = $('tvSetList'); box.textContent = '';
   TV_CH.forEach(c => {
@@ -3853,7 +3885,7 @@ function updateV7(dt, t) {
   if (state.loc === 'sky') { scene.background.copy(SKY_SKY); scene.fog.color.copy(SKY_SKY); }
   updateSport(dt, t); updateCity(dt, T); updateTanks(dt, T); drawTVs(T);
   if (state.playing && state.seed !== 7000 + dayNo()) { state.seed = 7000 + dayNo(); state.st = dayNo() * 86400000; beginRound(); toast('새 날이 밝았어요! 오늘의 보물상자가 섬 어딘가에 숨었어요'); }
-  { const atk = $('atkBtn'); if (!(my7 && state.loc === 'sport')) { const w = state.playing && myBag().weapon, raidOn = state.playing && state.loc === 'main' && raidInfo(Date.now()).ph < RAID_LEN, want = w ? '공격' : '펀치'; atk.hidden = !(w || raidOn); if (atk.textContent !== want) atk.textContent = want; } } updateCaught(dt, T); updateStations(dt); updateNag(); fadeHouses(); updateNight(dt, T); updateSea(dt, T); updateCall();
+  { const atk = $('atkBtn'); if (!(my7 && state.loc === 'sport')) { const w = state.playing && myBag().weapon, raidOn = state.playing && state.loc === 'main' && raidInfo(Date.now()).ph < RAID_LEN, want = w ? '공격' : '펀치'; atk.hidden = !(w || raidOn); if (atk.textContent !== want) atk.textContent = want; } } updateCaught(dt, T); updateStations(dt); updateNag(); fadeHouses(); updateNight(dt, T); updateSea(dt, T); updateCall(); updateCoinChests(dt, T); checkFairyHour();
   STATIONS.forEach(st => { if (st.loc !== state.loc || !player) return; st.train.position.y = 0.4 + Math.sin(T * 6) * 0.02; st.roof.visible = !inStation(st, player.position.x, player.position.z) && !inStation(st, camera.position.x, camera.position.z); });
   if (skyCab) skyCab.position.y = 0;
   for (const r of remotes.values()) { const o = r.obj; if (r.zz) { o.rotation.order = 'YXZ'; o.rotation.x = -Math.PI / 2; } else if (o.rotation.x) o.rotation.x = 0; }
@@ -5290,6 +5322,7 @@ function placeCamp(k) {
 function openCamp() {
   const box = $('campItems'); box.textContent = '';
   [['🔥', '캠프파이어 피우기', '물고기를 구워 먹어요', 'fire'], ['⛺', '텐트 치기', '들어가서 쉬어요', 'tent'], ['🪑', '캠핑의자 놓기', '앉아서 책을 읽어요', 'chair']].forEach(([e, n, s, k]) => box.append(itemBtn(e, n, s, () => placeCamp(k))));
+  campTidyItems(box);
   $('campNote').textContent = '바닷가에서 캠핑해요! 하나씩 놓을 수 있고, 다시 놓으면 자리를 옮겨요.';
   $('campBox').hidden = false;
 }
@@ -5340,7 +5373,7 @@ function placeActionNight(x, z) {
   if (isNight() && nearP(LASER, 6)) return { t: '레이저 춤추기 💃', f: () => startDance(1 + Math.floor(Math.random() * 9)) };
   let best = null, bd = 3;
   for (const o of campObjs.values()) { const d = Math.hypot(x - o.position.x, z - o.position.z); if (d < bd) { bd = d; best = o; } }
-  if (best) { const e = best.userData.e; if (e.k === 'fire') return state.grill ? { t: '지글지글 굽는 중...', f: () => {} } : { t: '물고기 구워 먹기 🐟', f: () => grillFish(best) }; if (e.k === 'tent') return { t: '텐트에서 쉬기 ⛺', f: () => enterTent(best) }; return { t: '의자에 앉아 책 읽기 📖', f: () => startRead(best) }; }
+  if (best) { const e = best.userData.e; if (e.k === 'fire' && state.grill) return { t: '지글지글 굽는 중...', f: () => {} }; return { t: e.k === 'fire' ? '🔥 캠프파이어 (굽기·치우기)' : e.k === 'tent' ? '⛺ 텐트 (쉬기·치우기)' : '🪑 의자 (책 읽기·치우기)', f: () => openCampThing(best) }; }
   if (onBeach(x, z)) return { t: '캠핑하기 🏕️', f: openCamp };
   return null;
 }
@@ -5529,9 +5562,9 @@ function updateDeepLife(dt, T) {
     if (c.kind === 'angler' && o.children[0].userData.bulb) o.children[0].userData.bulb.scale.setScalar(0.16 + Math.sin(T * 5 + c.ph) * 0.04);
     if (d < (K.big ? 30 : 12) && !SEA.seen.has(c.kind)) { SEA.seen.add(c.kind); toast(`${K.name}: ${K.fact}`); if (myLabel) showBubble(myLabel, `우와! ${K.name}다!`); }
     // swimming right into a big mouth on purpose works too
-    if (K.big && !SEA.ev && !SEA.gulp && Date.now() > state.safeUntil) {
-      const hx = o.position.x + Math.sin(o.rotation.y + Math.PI / 2) * 11 * K.s / 1.6, hz = o.position.z + Math.cos(o.rotation.y + Math.PI / 2) * 11 * K.s / 1.6;
-      if (Math.hypot(hx - px, hz - pz) < 5 && Math.abs(o.position.y - py) < 5) startGulp(c);
+    if (K.big && !SEA.ev && !SEA.gulp && Date.now() > state.safeUntil && Date.now() > (c.cool || 0) && d < 40) {
+      SEA.ev = { c, t: 0 }; bigRoar(); toast(c.kind === 'mosa' ? '앗! 모사사우루스가 나를 봤어요! 입을 쩍~ 벌리고 와요!' : '앗! 향유고래가 나를 봤어요! 입을 쩍~ 벌리고 와요!');
+      if (myLabel) showBubble(myLabel, '으아아~ 잡아먹힌다!');
     }
   }
   if (SEA.snow) { const P = SEA.snow.geometry.attributes.position, B = SEA.snow.userData.base, wrap = (v, c, w) => c + ((((v - c) % w) + w * 1.5) % w) - w / 2; for (let i = 0; i < P.count; i++) { P.array[i * 3] = wrap(B[i * 3], px, 60); P.array[i * 3 + 2] = wrap(B[i * 3 + 2], pz, 60); P.array[i * 3 + 1] = ((B[i * 3 + 1] - T * 0.6) % 50 + 50) % 50; } P.needsUpdate = true; }
@@ -5556,9 +5589,9 @@ function updateDeepEvent(dt) {
   const o = E.c.o, K = DEEP_KINDS[E.c.kind]; E.t += dt;
   const dx = player.position.x - o.position.x, dz = player.position.z - o.position.z, dy = state.y - o.position.y, d = Math.hypot(dx, dz) || 1;
   o.rotation.y = Math.atan2(dx, dz) - Math.PI / 2;
-  const sp = 12.5 * dt; o.position.x += dx / d * sp; o.position.z += dz / d * sp; o.position.y += Math.max(-sp, Math.min(sp, dy));
+  const sp = (d < 40 ? 17 : 12.5) * dt; o.position.x += dx / d * sp; o.position.z += dz / d * sp; o.position.y += Math.max(-sp, Math.min(sp, dy));
   if (d < 6 + K.s * 4) { startGulp(E.c); return; }
-  if (E.t > 14) { SEA.ev = null; SEA.nextRoll = Date.now() + 45000; toast('휴~ 잽싸게 도망쳤어요!'); }
+  if (E.t > 14) { SEA.ev = null; E.c.cool = Date.now() + 20000; SEA.nextRoll = Date.now() + 45000; toast('휴~ 잽싸게 도망쳤어요!'); }
 }
 function startGulp(c) {
   if (SEA.gulp) return;
@@ -5603,7 +5636,7 @@ function spitOut() {
   const B = SEA.belly; SEA.belly = null; if (state.loc !== 'belly') return;
   const o = B.c.o, a = o.rotation.y + Math.PI / 2;
   let x = o.position.x + Math.sin(a) * 22, z = o.position.z + Math.cos(a) * 22; const d = Math.hypot(x - DEEP.x, z - DEEP.z); if (d > DEEP.r - 10) { x = DEEP.x + (x - DEEP.x) * (DEEP.r - 10) / d; z = DEEP.z + (z - DEEP.z) * (DEEP.r - 10) / d; }
-  goTo('deep', x, z, Math.max(4, o.position.y), a); state.camYaw = a + Math.PI; SEA.ev = null; SEA.nextRoll = Date.now() + 60000; state.safeUntil = Date.now() + 8000;
+  goTo('deep', x, z, Math.max(4, o.position.y), a); state.camYaw = a + Math.PI; B.c.cool = Date.now() + 60000; SEA.ev = null; SEA.nextRoll = Date.now() + 60000; state.safeUntil = Date.now() + 8000;
   whoosh(); spray(x, state.y + 1, z, 30, 8, 4); toast(B.kind === 'mosa' ? '퉤! 모사사우루스가 입으로 뱉어냈어요. 다시 심해예요!' : '퉤! 향유고래가 입으로 뱉어냈어요. 다시 심해예요!');
 }
 function openBellyChest() {
@@ -6206,10 +6239,208 @@ function drawArcade() {
   $('arcadeQuit').onclick = () => { if (ARC.g && !ARC.g.over && ARC.g.score > 0) arcadeOver(); else closeArcade(); };
 }
 function v8bDb() {
+  albumDb();
   db.doc('world/arcade').onSnapshot(s => { const d = s.exists && s.data(); if (!d || !d.best || typeof d.best !== 'object') return; FAMILY.forEach(f => { const v = +d.best[f.id]; if (v > (ARC.best[f.id] || 0) && v < 1e8) ARC.best[f.id] = Math.floor(v); }); try { localStorage.setItem('fam-arcade', JSON.stringify(ARC.best)); } catch (e) {} }, () => {});
 }
 window.__fun = { CALL, AR: ARC, startCall, acceptCall, hangUp, openArcade, arcadeStart, openTvOrGame, onlineIds };
 
+// ================= v8: family album (about 100 photos from 2017 until now) =================
+const ALBUM_MAX = 100, ALBUM_FROM = 2017;
+let album = []; // { id, d, s }
+const albumYM = d => { const t = new Date(d); return `${t.getFullYear()}년 ${t.getMonth() + 1}월`; };
+// read the "taken on" date from a JPEG's EXIF, else from the file name, else the file's own date
+function exifDate(v, t) {
+  const le = v.getUint16(t) === 0x4949, u16 = o => v.getUint16(o, le), u32 = o => v.getUint32(o, le);
+  const ifd = off => { const n = u16(t + off), out = {}; for (let i = 0; i < n && i < 400; i++) { const e = t + off + 2 + i * 12; if (e + 12 > v.byteLength) break; out[u16(e)] = e; } return out; };
+  const str = e => { const cnt = u32(e + 4), p = cnt > 4 ? t + u32(e + 8) : e + 8; let s = ''; for (let i = 0; i < cnt - 1 && i < 40 && p + i < v.byteLength; i++) s += String.fromCharCode(v.getUint8(p + i)); return s; };
+  const i0 = ifd(u32(t + 4)); let s = '';
+  if (i0[0x8769]) { const ex = ifd(u32(i0[0x8769] + 8)); if (ex[0x9003]) s = str(ex[0x9003]); else if (ex[0x9004]) s = str(ex[0x9004]); }
+  if (!s && i0[0x0132]) s = str(i0[0x0132]);
+  const m = /^(\d{4}):(\d\d):(\d\d) (\d\d):(\d\d)/.exec(s); return m && +m[1] > 1990 ? new Date(+m[1], m[2] - 1, +m[3], +m[4], +m[5]).getTime() : 0;
+}
+async function photoDate(file) {
+  try {
+    const v = new DataView(await file.slice(0, 196608).arrayBuffer());
+    if (v.byteLength > 4 && v.getUint16(0) === 0xFFD8) {
+      let o = 2;
+      while (o + 10 < v.byteLength) {
+        const m = v.getUint16(o), len = v.getUint16(o + 2);
+        if (m === 0xFFE1 && v.getUint32(o + 4) === 0x45786966) { const d = exifDate(v, o + 10); if (d) return d; break; }
+        if ((m & 0xFF00) !== 0xFF00 || m === 0xFFDA) break; o += 2 + len;
+      }
+    }
+  } catch (e) {}
+  const n = /(20\d\d)[-_.]?([01]\d)[-_.]?([0-3]\d)/.exec(file.name || '');
+  if (n && +n[2] >= 1 && +n[2] <= 12) return new Date(+n[1], n[2] - 1, +n[3], 12).getTime();
+  return file.lastModified || Date.now();
+}
+// shuffle each year, then take one from every year in turn: an even spread from 2017 until now
+function spreadPick(items, n) {
+  const by = new Map(); items.forEach(it => { const y = new Date(it.d).getFullYear(); if (!by.has(y)) by.set(y, []); by.get(y).push(it); });
+  by.forEach(a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } });
+  const years = [...by.keys()].sort((a, b) => a - b), out = [];
+  while (out.length < n && years.some(y => by.get(y).length)) for (const y of years) { const a = by.get(y); if (a.length && out.length < n) out.push(a.pop()); }
+  return out;
+}
+function shrinkAlbum(file) {
+  return new Promise((res, rej) => {
+    const img = new Image(), url = URL.createObjectURL(file);
+    img.onload = () => {
+      const k = Math.min(1, 560 / Math.max(img.width, img.height)), c = document.createElement('canvas');
+      c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height); URL.revokeObjectURL(url); res(c.toDataURL('image/jpeg', 0.72));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); rej(new Error('bad')); }; img.src = url;
+  });
+}
+let albumBusy = false;
+async function addAlbumFiles(files) {
+  if (albumBusy) return; albumBusy = true;
+  const note = $('albumMsg'), room = ALBUM_MAX - album.length;
+  try {
+    if (!db) { note.textContent = '가족 주소로 들어와야 앨범을 저장할 수 있어요.'; return; }
+    if (room <= 0) { note.textContent = `앨범이 가득 찼어요 (${ALBUM_MAX}장). 새로 고르려면 먼저 '앨범 비우기'를 눌러요.`; return; }
+    const imgs = files.filter(f => /^image\//.test(f.type) || /\.(jpe?g|png|webp|heic|heif)$/i.test(f.name));
+    const dated = [];
+    for (let i = 0; i < imgs.length; i += 16) { note.textContent = `사진 날짜를 읽는 중... ${i} / ${imgs.length}`; const part = imgs.slice(i, i + 16); (await Promise.all(part.map(photoDate))).forEach((d, k) => dated.push({ f: part[k], d })); }
+    const since = new Date(ALBUM_FROM, 0, 1).getTime(), ok = dated.filter(x => x.d >= since), old = dated.length - ok.length;
+    const queue = spreadPick(ok, ok.length), want = Math.min(room, ok.length); let done = 0, bad = 0, qi = 0;
+    const pick = { length: want };
+    while (done < want && qi < queue.length) {
+      note.textContent = `앨범에 넣는 중... ${done} / ${want}`;
+      const batch = queue.slice(qi, qi + Math.min(4, want - done)); qi += batch.length;
+      await Promise.all(batch.map(async x => {
+        try { const s = await shrinkAlbum(x.f), id = x.d.toString(36) + Math.random().toString(36).slice(2, 6); await db.doc('album/' + id).set({ d: x.d, s, by: chosen }); if (!album.some(a => a.id === id)) album.push({ id, d: x.d, s }); done++; }
+        catch (err) { bad++; }
+      }));
+    }
+    album.sort((a, b) => a.d - b.d); renderAlbum();
+    const parts = [`${done}장을 가족 앨범에 넣었어요!`];
+    if (ok.length > pick.length) parts.push(`고른 ${ok.length}장 중에서 해마다 고르게 ${pick.length}장을 뽑았어요.`);
+    if (old) parts.push(`${ALBUM_FROM}년보다 오래된 사진 ${old}장은 뺐어요.`);
+    if (bad) parts.push(`${bad}장은 열 수 없는 형식(아이폰 HEIC 등)이라 못 넣었어요.`);
+    note.textContent = parts.join(' ');
+  } finally { albumBusy = false; }
+}
+function renderAlbum() {
+  $('albumCount').textContent = album.length ? `사진 ${album.length}장` : '아직 없어요';
+  if ($('albumPanel').hidden) return;
+  const box = $('albumThumbs'); box.textContent = '';
+  const years = {}; album.forEach(a => { const y = new Date(a.d).getFullYear(); years[y] = (years[y] || 0) + 1; });
+  $('albumYears').textContent = Object.keys(years).length ? Object.keys(years).map(y => `${y}년 ${years[y]}장`).join(' · ') : '';
+  album.forEach(a => { const i = document.createElement('img'); i.src = a.s; i.alt = albumYM(a.d); i.title = albumYM(a.d); i.loading = 'lazy'; box.append(i); });
+}
+$('albumOpen').onclick = () => { $('albumPanel').hidden = !$('albumPanel').hidden; $('photoPanel').hidden = true; renderAlbum(); };
+$('albumClose').onclick = () => { $('albumPanel').hidden = true; };
+$('albumIn').onchange = async e => { const files = [...e.target.files]; e.target.value = ''; await addAlbumFiles(files); };
+$('albumClear').onclick = () => askBuy('가족 앨범 사진을 모두 지울까요? 모든 기기에서 지워져요.', async () => {
+  const list = album.slice(); album = []; renderAlbum();
+  if (db) for (const a of list) await db.doc('album/' + a.id).set({ gone: 1 }).catch(() => {});
+  $('albumMsg').textContent = '앨범을 비웠어요.';
+});
+function albumDb() {
+  db.collection('album').onSnapshot(snap => {
+    const list = []; snap.docs.forEach(doc => { const v = doc.data() || {}; if (typeof v.s === 'string' && v.s.startsWith('data:image/') && +v.d > 0) list.push({ id: doc.id, d: +v.d, s: v.s }); });
+    album = list.sort((a, b) => a.d - b.d).slice(0, ALBUM_MAX * 2); renderAlbum();
+  }, () => {});
+}
+// ---- the album channel on the house TV: oldest first, or shuffled ----
+const ALB = { on: false, i: 0, order: [], t: 0, shuffle: false };
+function albumOrder() { const idx = album.map((_, i) => i); if (ALB.shuffle) for (let i = idx.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [idx[i], idx[j]] = [idx[j], idx[i]]; } return idx; }
+function showAlbumTV(h) {
+  ALB.on = true; ALB.order = albumOrder(); ALB.i = 0; clearInterval(ALB.t);
+  $('tvFrame').src = 'about:blank'; $('tvFrame').hidden = true; $('tvYt').hidden = true;
+  if (!album.length) { $('tvEmpty').hidden = false; $('tvEmpty').textContent = '가족 앨범에 아직 사진이 없어요. 처음 화면의 "📸 가족 앨범"에서 사진을 넣어 주세요.'; $('tvAlbum').hidden = true; }
+  else { $('tvEmpty').hidden = true; $('tvAlbum').hidden = false; albumSlide(0); ALB.t = setInterval(() => albumSlide(1), 4500); }
+  $('tvAlbumCtl').hidden = !album.length; $('albShuffle').setAttribute('aria-pressed', String(ALB.shuffle));
+}
+function albumSlide(step) {
+  if (!ALB.on || !album.length) return;
+  const n = ALB.order.length; if (!n) return; ALB.i = (ALB.i + step + n) % n;
+  const a = album[ALB.order[ALB.i]]; if (!a) return;
+  $('tvAlbumImg').src = a.s; $('tvAlbumCap').textContent = `${albumYM(a.d)} · ${ALB.i + 1} / ${n}`;
+}
+function stopAlbumTV() { ALB.on = false; clearInterval(ALB.t); $('tvAlbum').hidden = true; $('tvAlbumCtl').hidden = true; }
+$('albPrev').onclick = () => { albumSlide(-1); clearInterval(ALB.t); ALB.t = setInterval(() => albumSlide(1), 4500); };
+$('albNext').onclick = () => { albumSlide(1); clearInterval(ALB.t); ALB.t = setInterval(() => albumSlide(1), 4500); };
+$('albShuffle').onclick = () => { ALB.shuffle = !ALB.shuffle; ALB.order = albumOrder(); ALB.i = 0; albumSlide(0); $('albShuffle').setAttribute('aria-pressed', String(ALB.shuffle)); $('albShuffle').textContent = ALB.shuffle ? '🔀 섞어서 보는 중' : '🔀 섞어서 보기'; };
+// a treasure sometimes shows an album photo
+function albumPhotoPick() { if (!album.length) return null; const a = album[Math.floor(Math.random() * album.length)]; return { src: a.s, cap: `${albumYM(a.d)} 우리 가족 사진을 찾았어요!` }; }
+
+// ================= v8: 20 small treasure chests with 1,000~10,000원 (new every day, each person opens each once) =================
+const COIN_N = 20, coinChests = [];
+let coinDay = -1, coinOpened = new Set();
+function coinKey() { return 'fam-coins-' + (pf ? pf.id : chosen); }
+function coinSpots(day) {
+  const R = rng(9100 + day), out = [], far = (loc, x, z) => out.every(p => p.loc !== loc || Math.hypot(p.x - x, p.z - z) > 14);
+  const tryAdd = (loc, n, gen, ok) => { let k = 0; for (let t = 0; t < 400 && k < n; t++) { const [x, z] = gen(); if (ok(x, z) && far(loc, x, z)) { out.push({ loc, x, z, v: (1 + Math.floor(R() * 10)) * 1000 }); k++; } } };
+  tryAdd('main', 11, () => { const a = R() * 6.283, d = 8 + R() * (ISLAND - 14); return [Math.cos(a) * d, Math.sin(a) * d]; }, (x, z) => obstacles.every(o => Math.hypot(o.x - x, o.z - z) > o.r + 1.6) && Math.hypot(x - LAIR.x, z - LAIR.z) > 24 && Math.hypot(x, z - 2) > 8);
+  tryAdd('sky', 3, () => { const a = R() * 6.283, d = 10 + R() * (SKY.r - 20); return [SKY.x + Math.cos(a) * d, SKY.z + Math.sin(a) * d]; }, (x, z) => !hitWall7(x, z, 1.5) && !houseAt(x, z));
+  tryAdd('sport', 3, () => { const a = R() * 6.283, d = 10 + R() * (SPORT.r - 20); return [SPORT.x + Math.cos(a) * d, SPORT.z + Math.sin(a) * d]; }, (x, z) => walkableSport(x, z));
+  tryAdd('city', 3, () => { const a = R() * 6.283, d = 10 + R() * (CITY.r - 20); return [CITY.x + Math.cos(a) * d, CITY.z + Math.sin(a) * d]; }, (x, z) => walkableCity(x, z) && walkableCity(x + 1.5, z) && walkableCity(x - 1.5, z) && walkableCity(x, z + 1.5) && walkableCity(x, z - 1.5) && !workAt(x, z));
+  return out.slice(0, COIN_N);
+}
+function placeCoinChests() {
+  const day = dayNo(); coinDay = day;
+  try { const v = JSON.parse(localStorage.getItem(coinKey()) || 'null'); coinOpened = new Set(v && v.day === day && Array.isArray(v.o) ? v.o : []); } catch (e) { coinOpened = new Set(); }
+  coinChests.forEach(c => scene.remove(c.o)); coinChests.length = 0;
+  coinSpots(day).forEach((p, i) => {
+    const o = makeChest(); o.scale.setScalar(0.75); o.position.set(p.x, 0, p.z); o.rotation.y = (i * 2.4) % 6.283;
+    o.userData.star.material = new THREE.MeshBasicMaterial({ color: 0x7af0a0 }); scene.add(o);
+    const done = coinOpened.has(i); if (done) { o.userData.found = true; o.userData.open = 1; o.userData.lidPivot.rotation.x = -1.9; o.userData.star.visible = false; }
+    coinChests.push({ o, i, v: p.v, loc: p.loc, done });
+  });
+}
+function updateCoinChests(dt, T) {
+  if (!player || !state.playing) return;
+  if (coinDay !== dayNo() || coinChests.pfId !== (pf && pf.id)) { coinChests.pfId = pf && pf.id; placeCoinChests(); }
+  for (const c of coinChests) {
+    const u = c.o.userData;
+    if (!c.done) { u.star.rotation.y += dt * 2; u.star.position.y = 1.6 + Math.sin(T * 3 + c.i) * 0.15; }
+    else if (u.open < 1) { u.open = Math.min(1, u.open + dt * 2.5); u.lidPivot.rotation.x = -u.open * 1.9; }
+    if (c.done || c.loc !== state.loc) continue;
+    if (Math.hypot(c.o.position.x - player.position.x, c.o.position.z - player.position.z) < 1.8) {
+      c.done = true; u.found = true; u.star.visible = false; u.gold.visible = true; coinOpened.add(c.i);
+      try { localStorage.setItem(coinKey(), JSON.stringify({ day: coinDay, o: [...coinOpened] })); } catch (e) {}
+      earn(c.v, '작은 보물상자에서'); confetti(c.o.position);
+      const left = coinChests.filter(q => !q.done).length; if (left === 0) setTimeout(() => toast('오늘의 작은 보물상자 20개를 모두 찾았어요! 내일 또 생겨요'), 2300);
+    }
+  }
+}
+// ---- fairy forest: one treasure an hour ----
+const fairyHour = () => Math.floor(Date.now() / 3600000);
+function fairyHourKey() { return 'fam-fairyhour-' + (pf ? pf.id : chosen); }
+function fairyTakenThisHour() { try { return +localStorage.getItem(fairyHourKey()) === fairyHour(); } catch (e) { return false; } }
+function markFairyHour() { try { localStorage.setItem(fairyHourKey(), String(fairyHour())); } catch (e) {} }
+function fairyNextText() { const m = Math.ceil((3600000 - Date.now() % 3600000) / 60000); return `다음 요정숲 보물은 ${m}분 뒤에 생겨요`; }
+let fairyHourSeen = -1;
+function checkFairyHour() {
+  if (state.loc !== 'fairy' || !player) { fairyHourSeen = -1; return; }
+  const h = fairyHour(); if (h === fairyHourSeen) return; const first = fairyHourSeen === -1; fairyHourSeen = h;
+  if (!first && !fairyGems.length && !fairyTakenThisHour()) { state.fairyTaken = 0; scatterFairyGems(); toast('✨ 요정숲에 새 보물이 생겼어요!'); }
+}
+// ---- tidy away camping things ----
+function removeCamp(e) {
+  campList = campList.filter(q => !(q.m === e.m && q.k === e.k && q.t === e.t));
+  if (state.tent && state.tent.o.userData.e === e) state.tent = null; if (state.read && state.read.o.userData.e === e) stopRead();
+  renderCamp(); saveCamp(); beep([784, 523], 0.07); $('campBox').hidden = true;
+  toast(e.k === 'fire' ? '🔥 캠프파이어를 껐어요' : e.k === 'tent' ? '⛺ 텐트를 걷었어요' : '🪑 의자를 접었어요');
+}
+const CAMP_NAME = { fire: ['🔥', '캠프파이어'], tent: ['⛺', '텐트'], chair: ['🪑', '캠핑의자'] };
+function campTidyItems(box) {
+  const mine = campList.filter(e => pf && e.m === pf.id), near = campList.filter(e => !(pf && e.m === pf.id) && myDistTo(e.x, e.z) < 25);
+  [...mine, ...near].forEach(e => { const [ic, nm] = CAMP_NAME[e.k] || ['🧹', '물건']; box.append(itemBtn('🧹', `${pf && e.m === pf.id ? '내' : famOf(e.m).name + '네'} ${nm} 치우기`, `${ic} 눌러서 치워요`, () => removeCamp(e))); });
+}
+function openCampThing(o) {
+  const e = o.userData.e, [ic, nm] = CAMP_NAME[e.k], box = $('campItems'); box.textContent = '';
+  if (e.k === 'fire') box.append(itemBtn('🐟', '물고기 구워 먹기', '지글지글 구워서 냠냠', () => { $('campBox').hidden = true; grillFish(o); }));
+  if (e.k === 'tent') box.append(itemBtn('⛺', '텐트에서 쉬기', '움직이면 밖으로 나와요', () => { $('campBox').hidden = true; enterTent(o); }));
+  if (e.k === 'chair') box.append(itemBtn('📖', '의자에 앉아 책 읽기', '재미있는 동화책', () => { $('campBox').hidden = true; startRead(o); }));
+  box.append(itemBtn('🧹', `${nm} 치우기`, `${famOf(e.m).name}네 ${eul(nm)} 치워요`, () => removeCamp(e)));
+  $('campNote').textContent = `${ic} ${famOf(e.m).name}네 ${nm}`; $('campBox').hidden = false;
+}
+
+window.__x = { scatterFairyGems, coinChests, placeCoinChests, campList: () => campList, openCampThing, campObjs, fairyGems, fairyTakenThisHour };
 const mapView = () => state.loc === 'deep' ? { x: DEEP.x, z: DEEP.z, span: DEEP.r + 10 } : state.loc === 'belly' ? { x: BELLY.x, z: BELLY.z, span: 40 } : state.loc === 'city' ? { x: CITY.x, z: CITY.z, span: CITY.r + 10 } : state.loc === 'fairy' ? { x: FAIRY.x, z: FAIRY.z, span: 60 } : state.loc === 'sky' ? { x: SKY.x, z: SKY.z, span: 130 } : (state.loc === 'sport' && typeof SPORT !== 'undefined') ? { x: SPORT.x, z: SPORT.z, span: SPORT.r + 10 } : { x: 0, z: 0, span: 280 };
 
 // ================= map (zoom in / out) =================
